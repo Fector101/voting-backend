@@ -98,12 +98,12 @@ app.use('/admin', adminRoutes)
 
 
 
-
-if (process.env.NODE_ENV !== 'production') {
+console.log(process.env.NODE_ENV)
+// if (process.env.NODE_ENV !== 'production') {
     server.listen(PORT, () => {
         console.log(`Server is running on http://localhost:${PORT}`);
     });
 
-}
+// }
 
 module.exports = app
