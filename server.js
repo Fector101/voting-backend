@@ -12,6 +12,7 @@ const server = http.createServer(app)
 
 
 const CLIENT_URL = process.env.CLIENT_URL
+console.log(CLIENT_URL)
 if (!CLIENT_URL) {
     throw new Error('Please add CLIENT_URL to env vars')
 }
