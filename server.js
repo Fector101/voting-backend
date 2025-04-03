@@ -4,7 +4,7 @@ const http = require("http");
 const socketIo = require("socket.io");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
-const Poll = require("./src/models/Poll"); 
+const Poll = require("./src/models/Poll");
 
 
 const app = express();
@@ -29,7 +29,6 @@ const PORT = process.env.PORT || 7000;
 const authnRoutes = require('./src/routes/authns')
 const adminRoutes = require('./src/routes/admin')
 const studentRoutes = require('./src/routes/students')
-
 const connectDB = require('./src/db')
 
 // Middleware
@@ -54,9 +53,8 @@ connectDB()
 io.on("connection", (socket) => {
     console.log("Client connected:", socket.id);
 
-    socket.on("joinPoll", (pollId) => {
-        socket.join(pollId);
-        console.log(`User joined poll room: ${pollId}`);
+    Poll.find().then(votes => {
+        socket.emit('pollsUpdate', votes);
     });
 
     socket.on("disconnect", () => {
@@ -64,12 +62,9 @@ io.on("connection", (socket) => {
     });
 });
 
-async function updatePollResults(pollId) {
-    const poll = await Poll.findById(pollId);
-    console.log(poll)
-    if (poll) {
-        io.to(pollId).emit("pollUpdate", poll); // Send updated poll data
-    }
+async function updatePollResults() {
+    const polls = await Poll.find();
+    io.emit("pollsUpdate", polls);
 }
 
 app.post("/vote", async (req, res) => {
@@ -83,8 +78,7 @@ app.post("/vote", async (req, res) => {
 
         option.votes += 1;
         await poll.save();
-
-        updatePollResults(pollId); // Emit live update
+        updatePollResults();
         res.status(200).json({ msg: "Vote counted successfully" });
     } catch (error) {
         console.error(error);
@@ -101,9 +95,9 @@ app.use('/admin', adminRoutes)
 
 console.log(process.env.NODE_ENV)
 // if (process.env.NODE_ENV !== 'production') {
-    server.listen(PORT, () => {
-        console.log(`Server is running on http://localhost:${PORT}`);
-    });
+server.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+});
 
 // }
 
