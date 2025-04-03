@@ -7,7 +7,6 @@ const studentSchema = new mongoose.Schema({
     password: { type: String, required: true },
     participatedPolls: [{
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Poll'  // References the polls the student has voted in
     }]
 });
 

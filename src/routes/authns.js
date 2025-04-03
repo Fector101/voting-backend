@@ -37,7 +37,7 @@ router.post('/signup', async (req, res) => {
         const token = jwt.sign(data, process.env.JWT_SECRET, { expiresIn: "1h" });
         res.cookie("userInfo", token, COOKIE_OPTIONS);
 
-        return res.status(201).json({ msg: 'Student registered successfully' })
+        return res.status(201).json({ msg: 'Student registered successfully' ,...data })
 
     } catch (err) {
         console.log('signup error: ', err)
@@ -84,7 +84,7 @@ router.post('/admin-login', async (req, res) => {
         const data = { role: "admin", username: matric_no, matric_no }
         const token = jwt.sign(data, process.env.JWT_SECRET, { expiresIn: '1h' });
         res.cookie("userInfo", token, COOKIE_OPTIONS);
-        return res.status(200).json({ msg: 'admin login successful', username: matric_no.split(' ')[0], role: 'admin' });
+        return res.status(200).json({ msg: 'admin login successful', ...data });
     } catch (err) {
         console.log('admin login error: ', err)
         return res.status(500).json({ msg: 'Something went wrong! -se' });
@@ -103,7 +103,7 @@ router.get('/me', verifyToken, (req, res) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        return res.status(200).json({ role: decoded.role, username: decoded.username });
+        return res.status(200).json({ role: decoded.role, username: decoded.username,matric_no:decoded.matric_no });
     } catch (error) {
         return res.status(401).json({ msg: "Something went wrong! -se" });
     }

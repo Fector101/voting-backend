@@ -2,6 +2,8 @@ const jwt = require('jsonwebtoken')
 
 const verifyToken = (req, res, next) => {
     const userInfo = req.cookies.userInfo
+    // console.log(req.cookies,222)
+    // console.log(userInfo,111)
     if (!userInfo) return res.status(401).json({ msg: 'Access denied' });
     
     try {

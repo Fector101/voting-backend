@@ -1,11 +1,10 @@
 const mongoose = require('mongoose');
 
-// Poll Schema (Voting Topic)
 const pollSchema = new mongoose.Schema({
-    title: { type: String, required: true },          // Title of the poll
-    description: { type: String },                    // Description of the poll
-    startDate: { type: Date, required: true },        // Start date of the poll
-    endDate: { type: Date, required: true },          // End date of the poll
+    title: { type: String, required: true },
+    description: { type: String },
+    startDate: { type: Date, required: true },
+    endDate: { type: Date, required: true },
     options: [{ text: String, votes: Number }],
     status: { 
         type: String, 
@@ -13,6 +12,7 @@ const pollSchema = new mongoose.Schema({
         required: true, 
         default: 'ongoing' 
     },
+    voters: [{ type: String }] 
 });
 
 const Poll = mongoose.model('Poll', pollSchema);
