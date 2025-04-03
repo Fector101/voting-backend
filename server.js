@@ -20,7 +20,7 @@ if (!CLIENT_URL) {
 const io = socketIo(server, {
     cors: {
         origin: CLIENT_URL,
-        // credentials: true
+        credentials: true
     }
 });
 
