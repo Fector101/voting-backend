@@ -4,8 +4,9 @@ const http = require("http");
 const socketIo = require("socket.io");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
-const Poll = require("./src/models/Poll");
 const jwt = require('jsonwebtoken')
+const Poll = require("./src/models/Poll");
+const { addParticipatedPoll, getPollWithMostVotes, getActivePolls, getAllVotesTotal } = require('./src/helper/dbUtils');
 
 
 const app = express();
@@ -29,10 +30,7 @@ const io = socketIo(server, {
 const PORT = process.env.PORT || 7000;
 const authnRoutes = require('./src/routes/authns')
 const adminRoutes = require('./src/routes/admin')
-// const studentRoutes = require('./src/routes/students')
 const connectDB = require('./src/db');
-// const Student = require('./src/models/Student');
-const { addParticipatedPoll, getPollWithMostVotes, getActivePolls, getAllVotesTotal } = require('./src/helper/dbUtils');
 
 // Middleware
 app.use(express.json())
@@ -154,12 +152,9 @@ app.use('/admin', adminRoutes)
 
 
 
-console.log(process.env.NODE_ENV)
 // if (process.env.NODE_ENV !== 'production') {
 server.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });
-
-// }
 
 module.exports = app
