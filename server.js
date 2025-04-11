@@ -122,7 +122,7 @@ async function updatePollResults(socket = null) {
         else {
             console.log('using mongodb...')
             const polls = await doDataBaseThing(() => Poll.find())
-            await redisClient.setEx('polls', DEFAULT_EXPIRATION, polls)
+            await redisClient.setEx('polls', DEFAULT_EXPIRATION, JSON.stringify(polls))
 
             const data = {
                 polls,
