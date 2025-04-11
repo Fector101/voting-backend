@@ -17,6 +17,7 @@ const server = http.createServer(app)
 let redisClient;
 async function createRedisClient() {
     if (!redisClient || !redisClient.isOpen) {
+        console.log('railway var REDIS_URL: ',process.env.REDIS_URL)
         redisClient = createClient({url:process.env.REDIS_URL});
         redisClient.on('error', (err) => console.log('Redis Client Error', err));
         await redisClient.connect();
