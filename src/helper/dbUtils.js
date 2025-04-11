@@ -24,7 +24,9 @@ async function addParticipatedPoll(studentId, pollId) {
 
 function getActivePolls(allPolls) {
     try {
-        const activePolls = allPolls.filter(poll => poll.status === 'ongoing')
+        const today = new Date();
+
+        const activePolls = allPolls.filter(poll => new Date(poll.endDate) >= today)
         return activePolls;
     } catch (error) {
         console.error('Error gettting active polls:', error);
@@ -65,4 +67,15 @@ const getAllVotesTotal = (allElections) => allElections.reduce((pollSum, electio
 
     return pollSum + electionVotes; // Add votes of current election to total
 }, 0); // Initial value for pollSum is 0
-module.exports = { addParticipatedPoll, getActivePolls, getPollWithMostVotes,getAllVotesTotal }
+
+function pollsLogicData(polls) {
+    const activePolls = getActivePolls(polls)
+
+    return {
+        totalVotes: getAllVotesTotal(polls),
+        pollWithMostVotes: getPollWithMostVotes(activePolls),
+        activePollsCount: activePolls.length
+    }
+}
+
+module.exports = { addParticipatedPoll, pollsLogicData }

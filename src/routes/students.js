@@ -1,6 +1,8 @@
+// DEPRECATED I'M NOT SAVING DATA ON STUDENT THEY CAN ONLY VOTE OR BE VOTED FOR 
+
 // const express = require('express')
 // const {verifyToken,doDataBaseThing} = require('../helper/basic')
-const Poll = require('../models/Poll');
+// const Poll = require('../models/Poll');
 
 // const router = express.Router();
 

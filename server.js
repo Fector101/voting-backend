@@ -5,12 +5,25 @@ const socketIo = require("socket.io");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const jwt = require('jsonwebtoken')
+const { createClient } = require('redis')
+const connectDB = require('./src/db');
+const {  addParticipatedPoll, pollsLogicData } = require('./src/helper/dbUtils');
 const Poll = require("./src/models/Poll");
-const { addParticipatedPoll, getPollWithMostVotes, getActivePolls, getAllVotesTotal } = require('./src/helper/dbUtils');
 
 
 const app = express();
 const server = http.createServer(app)
+
+let redisClient;
+async function createRedisClient() {
+    if (!redisClient || !redisClient.isOpen) {
+        redisClient = createClient();
+        redisClient.on('error', (err) => console.log('Redis Client Error', err));
+        await redisClient.connect();
+        console.log('creating redis client')
+    }
+}
+createRedisClient()
 
 
 const CLIENT_URL = process.env.CLIENT_URL
@@ -27,10 +40,7 @@ const io = socketIo(server, {
 });
 
 
-const PORT = process.env.PORT || 7000;
-const authnRoutes = require('./src/routes/authns')
-const adminRoutes = require('./src/routes/admin')
-const connectDB = require('./src/db');
+const { DEFAULT_EXPIRATION,verifyToken, doDataBaseThing } = require('./src/helper/basic');
 
 // Middleware
 app.use(express.json())
@@ -83,44 +93,77 @@ io.use((socket, next) => {
     }
 });
 
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
     console.log("Client connected:", socket.id);
-
-    Poll.find().then(polls => {
-        const totalVotes = getAllVotesTotal(polls)
-        const activePolls = getActivePolls(polls)
-        const pollWithMostVotes = getPollWithMostVotes(activePolls)
-        const activePollsCount = activePolls.length
-        // ,logic: {totalVotes,activePollsCount,pollWithMostVotes} });
-        socket.emit('pollsUpdate',
-            {
-                logic: { totalVotes, pollWithMostVotes, activePollsCount },
-                polls
-            });
-    });
-
+    await updatePollResults(socket)
     socket.on("disconnect", () => {
         console.log("Client disconnected:", socket.id);
     });
 });
+async function getPollsData() {
+    if (!redisClient.isOpen) {
+        await redisClient.connect();
+    }
+    return await redisClient.get('polls');
+}
+async function updatePollResults(socket = null) {
+    try {
+        const pollsdata = await getPollsData()
+        if (pollsdata !== null) {
+            console.log('using Redis Cache...')
+            const polls = JSON.parse(pollsdata)
+            const data_to_emit = {
+                polls,
+                logic: pollsLogicData(polls),
+            }
+            socket ? socket.emit('pollsUpdate', { ...data_to_emit }) : io.emit('pollsUpdate', { ...data_to_emit });
+        }
+        else {
+            console.log('using mongodb...')
+            const polls = await doDataBaseThing(() => Poll.find())
+            await redisClient.setEx('polls', DEFAULT_EXPIRATION, polls)
 
-async function updatePollResults() {
-    const polls = await Poll.find();
-    const totalVotes = getAllVotesTotal(polls)
-    const activePolls = getActivePolls(polls)
-    const pollWithMostVotes = getPollWithMostVotes(activePolls)
-    const activePollsCount = activePolls.length
-    console.log('Querying DB For Polls ----')
-    io.emit('pollsUpdate',
-        {
-            logic: { totalVotes, pollWithMostVotes, activePollsCount },
-            polls
-        });
+            const data = {
+                polls,
+                logic: pollsLogicData(polls),
+            }
+            socket ? socket.emit('pollsUpdate', { ...data }) : io.emit('pollsUpdate', { ...data });
+        }
+    } catch (error) {
+        console.error('Error handling Redis or DB:', error);
+    }
+
 }
 
-app.post("/vote", async (req, res) => {
+async function saveAVoteInRedis(requested_poll_id, optionId) {
+    requested_poll_id = requested_poll_id.toString()
+    const pollsdata = await getPollsData()
+    if (pollsdata !== null) {
+        let polls = JSON.parse(pollsdata)
+        const poll = polls.find(poll => poll._id === requested_poll_id)
+        if (poll) {
+            const option = poll.options.find(option => option._id === optionId)
+            if (option) {
+                option.votes += 1 // Object is linked so no need to create new one
+                await redisClient.setEx('polls', DEFAULT_EXPIRATION, JSON.stringify(polls))
+            }
+        }
+    }
+}
+
+// Need to Export updatePollResults to use in other files, Before Requiring the routes
+// Avoiding circular-import
+module.exports = { updatePollResults, getPollsData, redisClient };
+
+const PORT = process.env.PORT || 7000;
+const authnRoutes = require('./src/routes/authns')
+const adminRoutes = require('./src/routes/admin')
+
+app.post("/vote", verifyToken, async (req, res) => {
     const { matric_no, pollId, optionId } = req.body;
     try {
+        // TODO Don't to mongodb everytime someone votes on a poll
+        // Instead save a bunch at once no need to implement now not up to 20 users
         const poll = await Poll.findById(pollId);
         if (!poll) return res.status(404).json({ msg: "Poll not found" });
 
@@ -135,9 +178,10 @@ app.post("/vote", async (req, res) => {
         }
 
         option.votes += 1;
-        await poll.save();
+        await doDataBaseThing(() => poll.save())
 
-        updatePollResults();
+        await saveAVoteInRedis(poll._id,optionId)
+        await updatePollResults();
         res.status(200).json({ msg: "Vote counted successfully" });
     } catch (error) {
         console.error('b', error);
@@ -152,9 +196,6 @@ app.use('/admin', adminRoutes)
 
 
 
-// if (process.env.NODE_ENV !== 'production') {
 server.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });
-
-module.exports = app

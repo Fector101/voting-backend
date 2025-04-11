@@ -1,29 +1,36 @@
 const express = require('express');
 const { verifyAdmin } = require('../middlewares/verifyAdmin');
-const { doDataBaseThing, delay } = require('../helper/basic');
+const { doDataBaseThing, delay ,DEFAULT_EXPIRATION} = require('../helper/basic');
+const { updatePollResults, getPollsData,redisClient } = require('../../server');
 const Poll = require('../models/Poll');
 const router = express.Router();
 
 const getCurrentDate = () => new Date().toISOString().split("T")[0];
 
+async function addElectionToRedis(PollObject) {
+    const pollsdata = await getPollsData()
+    if (pollsdata !== null) {
+        const polls = JSON.parse(pollsdata)
+        polls.push(PollObject)
+        await redisClient.setEx('polls', DEFAULT_EXPIRATION, JSON.stringify(polls))
+    }
+}
 router.post('/add-election', verifyAdmin, async (req, res) => {
-    // TODO :) A way to to added electon twice
     try {
         let { title, description, options, endDate } = req.body;
         const startDate = getCurrentDate()
-        options = options.map(opt => ({ text: opt, votes: 0}))
-        console.log( { title, description, startDate,options, endDate,startDate })
-        // return res.status(400).json({ msg: "An error occurred while saving Election." });
-
+        options = options.map(opt => ({ text: opt, votes: 0 }))
         const newPoll = new Poll({ title, description, startDate, options, endDate, startDate });
         const result = await doDataBaseThing(() => newPoll.save())
         if (result === "db_error") {
             return res.status(400).json({ msg: "An error occurred while saving Election. -dbe" });
         }
+        await addElectionToRedis(newPoll)
+        await updatePollResults()
         res.status(201).json({ msg: 'Election added Successfully' });
     } catch (error) {
         console.log(error)
-        res.status(500).json({ msg: 'Error adding election -se' });
+        res.status(500).json({ msg: 'An error occurred while saving Election. -se' });
     }
 });
 // router.get('/ongoing-elections', async (req, res) => {

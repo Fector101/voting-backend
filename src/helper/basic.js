@@ -41,5 +41,6 @@ async function doDataBaseThing(func, arg = false) {
         }
     }
 }
+const DEFAULT_EXPIRATION = 3600 * 2
 
-module.exports = {verifyToken,doDataBaseThing,delay};
+module.exports = {verifyToken,doDataBaseThing,delay,DEFAULT_EXPIRATION};
