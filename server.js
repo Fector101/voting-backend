@@ -17,7 +17,7 @@ const server = http.createServer(app)
 let redisClient;
 async function createRedisClient() {
     if (!redisClient || !redisClient.isOpen) {
-        redisClient = createClient();
+        redisClient = createClient({url:process.env.REDIS_URL});
         redisClient.on('error', (err) => console.log('Redis Client Error', err));
         await redisClient.connect();
         console.log('creating redis client')
