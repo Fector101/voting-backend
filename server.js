@@ -154,8 +154,12 @@ async function saveAVoteInRedis(requested_poll_id, optionId) {
 
 // Need to Export updatePollResults to use in other files, Before Requiring the routes
 // Avoiding circular-import
-module.exports = { updatePollResults, getPollsData, redisClient };
-
+// module.exports = { updatePollResults, getPollsData, redisClient };
+module.exports = Object.assign(app, {
+  updatePollResults,
+  getPollsData,
+  redisClient,
+});
 const PORT = process.env.PORT || 7000;
 const authnRoutes = require('./src/routes/authns')
 const adminRoutes = require('./src/routes/admin')
