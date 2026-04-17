@@ -133,7 +133,7 @@ router.post('/forgot-password', async (req, res) => {
             return res.status(400).json({ msg: "An error occurred while saving reset token." });
         }
 
-        const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+        const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
         const mailOptions = {
             from: process.env.EMAIL_USER,
             to: email,
