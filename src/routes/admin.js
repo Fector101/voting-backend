@@ -157,6 +157,145 @@ router.delete('/delete-election/:id', verifyAdmin, async (req, res) => {
 //         res.status(500).json({ message: 'Internal Server Error' });
 //     }
 // });
+router.get('/analytics', verifyAdmin, async (req, res) => {
+    try {
+        const Student = require('../models/Student');
+        
+        const totalStudents = await Student.countDocuments();
+        const studentsWhoVoted = await Student.countDocuments({ participatedPolls: { $not: { $size: 0 } } });
+        
+        const allPolls = await Poll.find();
+        const totalVotes = allPolls.reduce((sum, poll) => {
+            return sum + poll.options.reduce((oSum, opt) => oSum + opt.votes, 0);
+        }, 0);
+
+        const pollParticipation = allPolls.map(poll => ({
+            title: poll.title,
+            count: poll.options.reduce((sum, opt) => sum + opt.votes, 0)
+        })).sort((a, b) => b.count - a.count).slice(0, 5);
+
+        res.json({
+            overview: {
+                totalStudents,
+                studentsWhoVoted,
+                totalVotes,
+                participationRate: totalStudents > 0 ? ((studentsWhoVoted / totalStudents) * 100).toFixed(2) : 0
+            },
+            popularPolls: pollParticipation
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ msg: 'Error fetching analytics' });
+    }
+});
+
+// Simulation & Seed Routes
+router.post('/simulation/generate', verifyAdmin, async (req, res) => {
+    try {
+        const Student = require('../models/Student');
+        const bcrypt = require('bcryptjs');
+        
+        // 1. Clear existing
+        await Student.deleteMany({});
+        await Poll.deleteMany({});
+        
+        // 2. Generate Users
+        const hashedPassword = await bcrypt.hash('password123', 10);
+        const firstNames = ['John', 'Jane', 'Michael', 'Emily', 'David', 'Sarah', 'Chris', 'Anna', 'James', 'Olivia', 'Robert', 'Sophia', 'William', 'Isabella', 'Joseph', 'Mia', 'Thomas', 'Charlotte', 'Charles', 'Amelia'];
+        const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez', 'Hernandez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore', 'Jackson', 'Martin'];
+        
+        const users = [];
+        for (let i = 1; i <= 50; i++) {
+            const fName = firstNames[Math.floor(Math.random() * firstNames.length)];
+            const lName = lastNames[Math.floor(Math.random() * lastNames.length)];
+            const matric_no = `FT23CMP${i.toString().padStart(4, '0')}`;
+            const username = `${fName} ${lName} (${matric_no.slice(-4)})`;
+            
+            const student = new Student({
+                username,
+                matric_no,
+                email: `${fName.toLowerCase()}${i}@university.edu`,
+                password: hashedPassword,
+                participatedPolls: []
+            });
+            await student.save();
+            users.push(student);
+        }
+
+        // 3. Generate Polls
+        const pollConfigs = [
+            {
+                title: 'Best Campus Hangout 2026',
+                description: 'Which spot is the best for relaxing between lectures?',
+                options: ['Main Cafeteria', 'Library Garden', 'Student Center', 'Sports Complex']
+            },
+            {
+                title: 'Tech Stack Preference',
+                description: 'Choose the preferred stack for the upcoming hackathon.',
+                options: ['MERN', 'Django + React', 'Next.js + Supabase', 'Flutter + Firebase']
+            },
+            {
+                title: 'Library Opening Hours',
+                description: 'What do you think about extending hours during exam weeks?',
+                options: ['24/7 Access', 'Until Midnight', 'Keep as is', 'Open earlier']
+            }
+        ];
+
+        const polls = [];
+        for (const config of pollConfigs) {
+            const poll = new Poll({
+                title: config.title,
+                description: config.description,
+                startDate: new Date(),
+                endDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+                options: config.options.map(opt => ({ text: opt, votes: 0, voters: [] })),
+                status: 'ongoing',
+                voters: []
+            });
+            await poll.save();
+            polls.push(poll);
+        }
+
+        // 4. Simulate Votes
+        for (const user of users) {
+            const numVotes = Math.floor(Math.random() * 2) + 1; // 1-2 votes
+            const shuffledPolls = [...polls].sort(() => 0.5 - Math.random());
+            for (let i = 0; i < numVotes; i++) {
+                const poll = shuffledPolls[i];
+                const optIndex = Math.floor(Math.random() * poll.options.length);
+                const option = poll.options[optIndex];
+                
+                option.votes += 1;
+                option.voters.push(user.username);
+                poll.voters.push(user.matric_no);
+                user.participatedPolls.push(poll._id);
+            }
+        }
+
+        await Promise.all(polls.map(p => p.save()));
+        await Promise.all(users.map(u => u.save()));
+        await refreshRedisPolls();
+
+        res.json({ msg: 'Simulation data generated successfully (50 users, 3 polls)' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ msg: 'Simulation failed' });
+    }
+});
+
+router.delete('/simulation/clear', verifyAdmin, async (req, res) => {
+    try {
+        const Student = require('../models/Student');
+        await Student.deleteMany({});
+        await Poll.deleteMany({});
+        await refreshRedisPolls();
+        res.json({ msg: 'All poll and student data cleared successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ msg: 'Clear failed' });
+    }
+});
+
 // router.get("/election-candidate/:matric_no", async (req, res) => {
 //     try {
 
