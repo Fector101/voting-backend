@@ -15,6 +15,11 @@ async function addElectionToRedis(PollObject) {
         await redisClient.setEx('polls', DEFAULT_EXPIRATION, JSON.stringify(polls))
     }
 }
+
+async function refreshRedisPolls() {
+    await redisClient.del('polls');
+    await updatePollResults();
+}
 router.post('/add-election', verifyAdmin, async (req, res) => {
     try {
         let { title, description, options, endDate } = req.body;
@@ -31,6 +36,60 @@ router.post('/add-election', verifyAdmin, async (req, res) => {
     } catch (error) {
         console.log(error)
         res.status(500).json({ msg: 'An error occurred while saving Election. -se' });
+    }
+});
+
+router.put('/edit-election/:id', verifyAdmin, async (req, res) => {
+    try {
+        const { title, description, options, endDate } = req.body;
+        const pollId = req.params.id;
+
+        const poll = await Poll.findById(pollId);
+        if (!poll) {
+            return res.status(404).json({ msg: "Election not found" });
+        }
+
+        poll.title = title || poll.title;
+        poll.description = description || poll.description;
+        poll.endDate = endDate || poll.endDate;
+
+        if (options && Array.isArray(options)) {
+            // we want to preserve votes for existing options if names match, or handle by ID if we could.
+            // Simplified: if option exists in the new list (by text), keep its votes.
+            // However, the frontend sends a list of strings.
+            // Better approach: handle options carefully.
+            const existingOptionsMap = new Map();
+            poll.options.forEach(opt => existingOptionsMap.set(opt.text, opt.votes));
+
+            poll.options = options.map(optText => {
+                return {
+                    text: optText,
+                    votes: existingOptionsMap.get(optText) || 0
+                };
+            });
+        }
+
+        await doDataBaseThing(() => poll.save());
+        await refreshRedisPolls();
+        res.status(200).json({ msg: 'Election updated Successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ msg: 'An error occurred while updating Election.' });
+    }
+});
+
+router.delete('/delete-election/:id', verifyAdmin, async (req, res) => {
+    try {
+        const pollId = req.params.id;
+        const result = await doDataBaseThing(() => Poll.findByIdAndDelete(pollId));
+        if (result === "db_error") {
+            return res.status(400).json({ msg: "An error occurred while deleting Election." });
+        }
+        await refreshRedisPolls();
+        res.status(200).json({ msg: 'Election deleted Successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ msg: 'An error occurred while deleting Election.' });
     }
 });
 // router.get('/ongoing-elections', async (req, res) => {
