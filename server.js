@@ -136,7 +136,7 @@ async function updatePollResults(socket = null) {
 
 }
 
-async function saveAVoteInRedis(requested_poll_id, optionId) {
+async function saveAVoteInRedis(requested_poll_id, optionId, username) {
     requested_poll_id = requested_poll_id.toString()
     const pollsdata = await getPollsData()
     if (pollsdata !== null) {
@@ -145,7 +145,9 @@ async function saveAVoteInRedis(requested_poll_id, optionId) {
         if (poll) {
             const option = poll.options.find(option => option._id === optionId)
             if (option) {
-                option.votes += 1 // Object is linked so no need to create new one
+                option.votes += 1 
+                if (!option.voters) option.voters = [];
+                option.voters.push(username);
                 await redisClient.setEx('polls', DEFAULT_EXPIRATION, JSON.stringify(polls))
             }
         }
@@ -183,9 +185,12 @@ app.post("/vote", verifyToken, async (req, res) => {
         }
 
         option.votes += 1;
+        if (!option.voters) option.voters = []; // Initialize if not present
+        option.voters.push(req.user.username); // Add username to option's voters list
+
         await doDataBaseThing(() => poll.save())
 
-        await saveAVoteInRedis(poll._id,optionId)
+        await saveAVoteInRedis(poll._id, optionId, req.user.username)
         await updatePollResults();
         res.status(200).json({ msg: "Vote counted successfully" });
     } catch (error) {

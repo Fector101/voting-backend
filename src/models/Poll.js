@@ -5,7 +5,11 @@ const pollSchema = new mongoose.Schema({
     description: { type: String },
     startDate: { type: Date, required: true },
     endDate: { type: Date, required: true },
-    options: [{ text: String, votes: Number }],
+    options: [{ 
+        text: String, 
+        votes: { type: Number, default: 0 },
+        voters: [{ type: String }] // Array of matric numbers or usernames
+    }],
     status: { 
         type: String, 
         enum: ['upcoming', 'ongoing', 'completed'], 
